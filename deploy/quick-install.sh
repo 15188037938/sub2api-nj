@@ -37,7 +37,7 @@ REPO="15188037938/sub2api-nj"
 REPO_URL="https://github.com/${REPO}.git"
 INSTALL_DIR="${INSTALL_DIR:-/opt/sub2api-nj}"
 SERVER_PORT="${SERVER_PORT:-8080}"
-TOTAL_STEPS=7
+TOTAL_STEPS=8
 
 # ============================================================
 # Step 1: 检查 root
@@ -143,9 +143,54 @@ else
 fi
 
 # ============================================================
-# Step 5: 准备 docker-compose
+# Step 5: 检查端口可用性并开放防火墙
 # ============================================================
 STEP=5
+print_step "$STEP" "检查端口可用性并开放防火墙"
+
+PORT=${SERVER_PORT:-8080}
+
+# 检查端口是否被占用，被占则顺位递增
+while ss -tlnp 2>/dev/null | grep -q ":$PORT "; do
+  print_warn "端口 $PORT 已被占用，尝试 $((PORT + 1))..."
+  PORT=$((PORT + 1))
+done
+
+# 如果端口变了，更新 .env
+if [ "$PORT" != "${SERVER_PORT:-8080}" ]; then
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s/SERVER_PORT=.*/SERVER_PORT=${PORT}/" .env
+  else
+    sed -i "s/SERVER_PORT=.*/SERVER_PORT=${PORT}/" .env
+  fi
+  print_info "端口已改为: $PORT"
+fi
+SERVER_PORT=$PORT
+export SERVER_PORT
+
+# 开放防火墙端口
+if command -v ufw &>/dev/null; then
+  if ufw status | grep -qE "^$PORT/|$PORT/tcp"; then
+    print_ok "端口 $PORT 已在 UFW 中开放"
+  else
+    print_info "开放端口 $PORT (UFW)..."
+    ufw allow "$PORT/tcp" 2>&1 | tail -1
+  fi
+elif command -v iptables &>/dev/null; then
+  if iptables -L INPUT -n 2>/dev/null | grep -q ":$PORT "; then
+    print_ok "端口 $PORT 已在 iptables 中开放"
+  else
+    print_info "开放端口 $PORT (iptables)..."
+    iptables -I INPUT -p tcp --dport "$PORT" -j ACCEPT 2>&1 | tail -1
+  fi
+else
+  print_warn "未检测到 UFW/iptables，请手动开放端口 $PORT"
+fi
+
+# ============================================================
+# Step 6: 准备 docker-compose
+# ============================================================
+STEP=6
 print_step "$STEP" "配置 Docker Compose（本地构建 + 签到抽奖）"
 
 if [ -f "docker-compose.nj.yml" ]; then
@@ -296,9 +341,9 @@ DOCKERCOMPOSE
 fi
 
 # ============================================================
-# Step 6: 构建并启动
+# Step 7: 构建并启动
 # ============================================================
-STEP=6
+STEP=7
 print_step "$STEP" "构建 Docker 镜像（约 5-10 分钟）"
 
 print_info "拉取基础镜像..."
@@ -323,9 +368,9 @@ for i in $(seq 1 30); do
 done
 
 # ============================================================
-# Step 7: 输出部署信息
+# Step 8: 输出部署信息
 # ============================================================
-STEP=7
+STEP=8
 print_step "$STEP" "部署完成"
 
 # 获取服务器 IP
