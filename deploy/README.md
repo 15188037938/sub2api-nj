@@ -1,613 +1,149 @@
-# Sub2API Deployment Files
+# Sub2API-NJ 部署指南
 
-This directory contains files for deploying Sub2API on Linux servers.
+含签到抽奖系统的 Sub2API 自定义版本。
 
-## Deployment Methods
+**仓库:** <https://github.com/15188037938/sub2api-nj>
 
-| Method | Best For | Setup Wizard |
-|--------|----------|--------------|
-| **Docker Compose** | Quick setup, all-in-one | Not needed (auto-setup) |
-| **Binary Install** | Production servers, systemd | Web-based wizard |
+## 一键安装（推荐）
 
-## Files
-
-| File | Description |
-|------|-------------|
-| `docker-compose.yml` | Docker Compose configuration (named volumes) |
-| `docker-compose.local.yml` | Docker Compose configuration (local directories, easy migration) |
-| `docker-deploy.sh` | **One-click Docker deployment script (recommended)** |
-| `.env.example` | Docker environment variables template |
-| `DOCKER.md` | Docker Hub documentation |
-| `install.sh` | One-click binary installation script |
-| `install-datamanagementd.sh` | datamanagementd 一键安装脚本 |
-| `sub2api.service` | Systemd service unit file |
-| `sub2api-datamanagementd.service` | datamanagementd systemd service unit file |
-| `DATAMANAGEMENTD_CN.md` | datamanagementd 部署与联动说明（中文） |
-| `config.example.yaml` | Example configuration file |
-
----
-
-## Docker Deployment (Recommended)
-
-### Method 1: One-Click Deployment (Recommended)
-
-Use the automated preparation script for the easiest setup:
+在**全新 Linux 服务器**上，一条命令搞定：
 
 ```bash
-# Download and run the preparation script
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh | bash
+# 方式 A: curl
+curl -sSL https://raw.githubusercontent.com/15188037938/sub2api-nj/main/deploy/quick-install.sh | sudo bash
 
-# Or download first, then run
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh -o docker-deploy.sh
-chmod +x docker-deploy.sh
-./docker-deploy.sh
+# 方式 B: wget
+wget -qO- https://raw.githubusercontent.com/15188037938/sub2api-nj/main/deploy/quick-install.sh | sudo bash
 ```
 
-**What the script does:**
-- Downloads `docker-compose.local.yml` and `.env.example`
-- Automatically generates secure secrets (JWT_SECRET, TOTP_ENCRYPTION_KEY, POSTGRES_PASSWORD)
-- Creates `.env` file with generated secrets
-- Creates necessary data directories (data/, postgres_data/, redis_data/)
-- **Displays generated credentials** (POSTGRES_PASSWORD, JWT_SECRET, etc.)
+脚本会自动完成：
+- 安装 Docker + Docker Compose（如未安装）
+- 克隆项目代码
+- 生成随机安全密钥（数据库密码、JWT 密钥、TOTP 密钥）
+- 使用 Docker 本地构建完全镜像（含签到抽奖代码）
+- 启动 PostgreSQL、Redis、应用服务
+- 执行数据库迁移（创建签到/抽奖相关表）
+- 输出访问地址和管理后台账号
 
-**After running the script:**
-```bash
-# Start services
-docker compose -f docker-compose.local.yml up -d
+> 首次构建约 5-10 分钟，后续更新只需改代码后重新 `docker compose build`。
 
-# View logs
-docker compose -f docker-compose.local.yml logs -f sub2api
+## 手动部署
 
-# If admin password was auto-generated, find it in logs:
-docker compose -f docker-compose.local.yml logs sub2api | grep "admin password"
+### 前置条件
 
-# Access Web UI
-# http://localhost:8080
-```
+| 组件 | 版本 | 用途 |
+|------|------|------|
+| Docker | 24+ | 容器化运行 |
+| Docker Compose | 2.20+ | 服务编排 |
+| 或 Go | 1.21+ | 直接编译运行 |
 
-### Method 2: Manual Deployment
-
-If you prefer manual control:
+### 方案 A: Docker Compose
 
 ```bash
-# Clone repository
-git clone https://github.com/Wei-Shaw/sub2api.git
-cd sub2api/deploy
+# 1. 克隆仓库
+git clone --depth 1 https://github.com/15188037938/sub2api-nj.git
+cd sub2api-nj/deploy
 
-# Configure environment
+# 2. 配置环境变量
 cp .env.example .env
-nano .env  # Set POSTGRES_PASSWORD and other required variables
+# 编辑 .env，至少修改：
+#   POSTGRES_PASSWORD=your_secure_password
+#   JWT_SECRET=$(openssl rand -hex 32)
 
-# Generate secure secrets (recommended)
-JWT_SECRET=$(openssl rand -hex 32)
-TOTP_ENCRYPTION_KEY=$(openssl rand -hex 32)
-echo "JWT_SECRET=${JWT_SECRET}" >> .env
-echo "TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY}" >> .env
+# 3. 启动（本地构建，100% 含签到抽奖代码）
+docker compose -f docker-compose.nj.yml --env-file .env up -d
 
-# Create data directories
-mkdir -p data postgres_data redis_data
-
-# Start all services using local directory version
-docker compose -f docker-compose.local.yml up -d
-
-# View logs (check for auto-generated admin password)
-docker compose -f docker-compose.local.yml logs -f sub2api
-
-# Access Web UI
-# http://localhost:8080
+# 4. 执行数据库迁移
+docker compose -f docker-compose.nj.yml --env-file .env up migrate
 ```
 
-### Deployment Version Comparison
-
-| Version | Data Storage | Migration | Best For |
-|---------|-------------|-----------|----------|
-| **docker-compose.local.yml** | Local directories (./data, ./postgres_data, ./redis_data) | ✅ Easy (tar entire directory) | Production, need frequent backups/migration |
-| **docker-compose.yml** | Named volumes (/var/lib/docker/volumes/) | ⚠️ Requires docker commands | Simple setup, don't need migration |
-
-**Recommendation:** Use `docker-compose.local.yml` (deployed by `docker-deploy.sh`) for easier data management and migration.
-
-### How Auto-Setup Works
-
-When using Docker Compose with `AUTO_SETUP=true`:
-
-1. On first run, the system automatically:
-   - Connects to PostgreSQL and Redis
-   - Applies database migrations (SQL files in `backend/migrations/*.sql`) and records them in `schema_migrations`
-   - Generates JWT secret (if not provided)
-   - Creates admin account (password auto-generated if not provided)
-   - Writes config.yaml
-
-2. No manual Setup Wizard needed - just configure `.env` and start
-
-3. If `ADMIN_PASSWORD` is not set, check logs for the generated password:
-   ```bash
-   docker compose logs sub2api | grep "admin password"
-   ```
-
-### Database Migration Notes (PostgreSQL)
-
-- Migrations are applied in lexicographic order (e.g. `001_...sql`, `002_...sql`).
-- `schema_migrations` tracks applied migrations (filename + checksum).
-- Migrations are forward-only; rollback requires a DB backup restore or a manual compensating SQL script.
-
-**Verify `users.allowed_groups` → `user_allowed_groups` backfill**
-
-During the incremental GORM→Ent migration, `users.allowed_groups` (legacy `BIGINT[]`) is being replaced by a normalized join table `user_allowed_groups(user_id, group_id)`.
-
-Run this query to compare the legacy data vs the join table:
-
-```sql
-WITH old_pairs AS (
-  SELECT DISTINCT u.id AS user_id, x.group_id
-  FROM users u
-  CROSS JOIN LATERAL unnest(u.allowed_groups) AS x(group_id)
-  WHERE u.allowed_groups IS NOT NULL
-)
-SELECT
-  (SELECT COUNT(*) FROM old_pairs)           AS old_pair_count,
-  (SELECT COUNT(*) FROM user_allowed_groups) AS new_pair_count;
-```
-
-### datamanagementd（数据管理）联动
-
-如需启用管理后台“数据管理”功能，请额外部署宿主机 `datamanagementd`：
-
-- 主进程固定探测 `/tmp/sub2api-datamanagement.sock`
-- Docker 场景下需把宿主机 Socket 挂载到容器内同路径
-- 详细步骤见：`deploy/DATAMANAGEMENTD_CN.md`
-
-### Commands
-
-For **local directory version** (docker-compose.local.yml):
+### 方案 B: 直接编译
 
 ```bash
-# Start services
-docker compose -f docker-compose.local.yml up -d
+# 1. 安装依赖
+#    Go 1.21+, Node.js 18+, pnpm
 
-# Stop services
-docker compose -f docker-compose.local.yml down
+# 2. 克隆仓库
+git clone https://github.com/15188037938/sub2api-nj.git
+cd sub2api-nj/deploy
 
-# View logs
-docker compose -f docker-compose.local.yml logs -f sub2api
+# 3. 设置 PostgreSQL 和 Redis（自行安装）
+#    确保数据库可达
 
-# Restart Sub2API only
-docker compose -f docker-compose.local.yml restart sub2api
+# 4. 编译后端（嵌入前端）
+make build-embed
 
-# Update to latest version
-docker compose -f docker-compose.local.yml pull
-docker compose -f docker-compose.local.yml up -d
+# 5. 配置
+cp config.example.yaml config.yaml
+# 编辑 config.yaml: 填写数据库连接、Redis地址、JWT_SECRET
 
-# Remove all data (caution!)
-docker compose -f docker-compose.local.yml down
-rm -rf data/ postgres_data/ redis_data/
+# 6. 执行迁移
+psql -U sub2api -d sub2api -f ../backend/migrations/157_add_checkin_lottery.sql
+
+# 7. 启动
+./bin/server --config config.yaml
 ```
 
-For **named volumes version** (docker-compose.yml):
+## 数据库迁移
+
+签到抽奖系统新增 4 张表。自动迁移已在 `docker-compose.nj.yml` 中集成 - `migrate` 容器会按文件名顺序执行 `migrations/` 目录下的所有 SQL。
+
+如需手动执行：
 
 ```bash
-# Start services
-docker compose up -d
-
-# Stop services
-docker compose down
-
-# View logs
-docker compose logs -f sub2api
-
-# Restart Sub2API only
-docker compose restart sub2api
-
-# Update to latest version
-docker compose pull
-docker compose up -d
-
-# Remove all data (caution!)
-docker compose down -v
+export PGPASSWORD=your_password
+psql -h localhost -U sub2api -d sub2api -f backend/migrations/157_add_checkin_lottery.sql
 ```
 
-### Environment Variables
+迁移内容：`checkin_configs` / `checkin_records` / `lottery_prizes` / `lottery_records` + 7 条默认奖品数据。
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `POSTGRES_PASSWORD` | **Yes** | - | PostgreSQL password |
-| `JWT_SECRET` | **Recommended** | *(auto-generated)* | JWT secret (fixed for persistent sessions) |
-| `TOTP_ENCRYPTION_KEY` | **Recommended** | *(auto-generated)* | TOTP encryption key (fixed for persistent 2FA) |
-| `SERVER_PORT` | No | `8080` | Server port |
-| `ADMIN_EMAIL` | No | `admin@sub2api.local` | Admin email |
-| `ADMIN_PASSWORD` | No | *(auto-generated)* | Admin password |
-| `TZ` | No | `Asia/Shanghai` | Timezone |
-| `GEMINI_OAUTH_CLIENT_ID` | No | *(builtin)* | Google OAuth client ID (Gemini OAuth). Leave empty to use the built-in Gemini CLI client. |
-| `GEMINI_OAUTH_CLIENT_SECRET` | No | *(builtin)* | Google OAuth client secret (Gemini OAuth). Leave empty to use the built-in Gemini CLI client. |
-| `GEMINI_OAUTH_SCOPES` | No | *(default)* | OAuth scopes (Gemini OAuth) |
-| `GEMINI_QUOTA_POLICY` | No | *(empty)* | JSON overrides for Gemini local quota simulation (Code Assist only). |
+## 功能预览
 
-See `.env.example` for all available options.
+### 签到系统
+| 功能 | 默认值 | 管理后台可配置 |
+|------|--------|---------------|
+| 每日积分 | 1-10 分随机 | 是 |
+| 连续 3 天加成 | +2 分 | 是 |
+| 连续 7 天加成 | +5 分 | 是 |
+| 连续 30 天加成 | +20 分 | 是 |
 
-> **Note:** The `docker-deploy.sh` script automatically generates `JWT_SECRET`, `TOTP_ENCRYPTION_KEY`, and `POSTGRES_PASSWORD` for you.
+### 抽奖系统
+| 奖品 | 权重 | 说明 |
+|------|------|------|
+| 谢谢参与 | 30 | 概率最高 |
+| 1 元余额 | 25 | 自动到账 |
+| 3 元余额 | 15 | 自动到账 |
+| 5 元余额 | 10 | 自动到账 |
+| 10 元余额 | 5 | 自动到账 |
+| 积分返还+5 | 10 | 返还 5 积分 |
+| 积分返还+10 | 5 | 返还 10 积分 |
 
-### Easy Migration (Local Directory Version)
+### 管理后台
+- 签到配置：积分范围、抽奖消耗、每日上限、启用开关
+- 奖品管理：CRUD、权重、库存、排序、状态
 
-When using `docker-compose.local.yml`, all data is stored in local directories, making migration simple:
+## API 端点
+
+路径 | 方法 | 权限 | 说明
+-----|------|------|-----
+`/user/checkin/status` | GET | 用户 | 签到状态
+`/user/checkin` | POST | 用户 | 执行签到
+`/user/checkin/records` | GET | 用户 | 签到记录
+`/user/lottery/config` | GET | 用户 | 奖品列表
+`/user/lottery/draw` | POST | 用户 | 抽奖
+`/user/lottery/history` | GET | 用户 | 抽奖记录
+`/admin/checkin/config` | GET/PUT | 管理员 | 签到配置
+`/admin/lottery/prizes` | GET/POST | 管理员 | 奖品管理
+`/admin/lottery/prizes/:id` | PUT/DELETE | 管理员 | 奖品编辑
+`/admin/lottery/records` | GET | 管理员 | 抽奖记录
+`/admin/lottery/stats` | GET | 管理员 | 抽奖统计
+
+## 升级更新
 
 ```bash
-# On source server: Stop services and create archive
-cd /path/to/deployment
-docker compose -f docker-compose.local.yml down
-cd ..
-tar czf sub2api-complete.tar.gz deployment/
-
-# Transfer to new server
-scp sub2api-complete.tar.gz user@new-server:/path/to/destination/
-
-# On new server: Extract and start
-tar xzf sub2api-complete.tar.gz
-cd deployment/
-docker compose -f docker-compose.local.yml up -d
+cd /opt/sub2api-nj
+git pull origin main
+cd deploy
+docker compose -f docker-compose.nj.yml --env-file .env build sub2api
+docker compose -f docker-compose.nj.yml --env-file .env up -d
 ```
-
-Your entire deployment (configuration + data) is migrated!
-
----
-
-## Gemini OAuth Configuration
-
-Sub2API supports three methods to connect to Gemini:
-
-### Method 1: Code Assist OAuth (Recommended for GCP Users)
-
-**No configuration needed** - always uses the built-in Gemini CLI OAuth client (public).
-
-1. Leave `GEMINI_OAUTH_CLIENT_ID` and `GEMINI_OAUTH_CLIENT_SECRET` empty
-2. In the Admin UI, create a Gemini OAuth account and select **"Code Assist"** type
-3. Complete the OAuth flow in your browser
-
-> Note: Even if you configure `GEMINI_OAUTH_CLIENT_ID` / `GEMINI_OAUTH_CLIENT_SECRET` for AI Studio OAuth,
-> Code Assist OAuth will still use the built-in Gemini CLI client.
-
-**Requirements:**
-- Google account with access to Google Cloud Platform
-- A GCP project (auto-detected or manually specified)
-
-**How to get Project ID (if auto-detection fails):**
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Click the project dropdown at the top of the page
-3. Copy the Project ID (not the project name) from the list
-4. Common formats: `my-project-123456` or `cloud-ai-companion-xxxxx`
-
-### Method 2: AI Studio OAuth (For Regular Google Accounts)
-
-Requires your own OAuth client credentials.
-
-**Step 1: Create OAuth Client in Google Cloud Console**
-
-1. Go to [Google Cloud Console - Credentials](https://console.cloud.google.com/apis/credentials)
-2. Create a new project or select an existing one
-3. **Enable the Generative Language API:**
-   - Go to "APIs & Services" → "Library"
-   - Search for "Generative Language API"
-   - Click "Enable"
-4. **Configure OAuth Consent Screen** (if not done):
-   - Go to "APIs & Services" → "OAuth consent screen"
-   - Choose "External" user type
-   - Fill in app name, user support email, developer contact
-   - Add scopes: `https://www.googleapis.com/auth/generative-language.retriever` (and optionally `https://www.googleapis.com/auth/cloud-platform`)
-   - Add test users (your Google account email)
-5. **Create OAuth 2.0 credentials:**
-   - Go to "APIs & Services" → "Credentials"
-   - Click "Create Credentials" → "OAuth client ID"
-   - Application type: **Web application** (or **Desktop app**)
-   - Name: e.g., "Sub2API Gemini"
-   - Authorized redirect URIs: Add `http://localhost:1455/auth/callback`
-6. Copy the **Client ID** and **Client Secret**
-7. **⚠️ Publish to Production (IMPORTANT):**
-   - Go to "APIs & Services" → "OAuth consent screen"
-   - Click "PUBLISH APP" to move from Testing to Production
-   - **Testing mode limitations:**
-     - Only manually added test users can authenticate (max 100 users)
-     - Refresh tokens expire after 7 days
-     - Users must be re-added periodically
-   - **Production mode:** Any Google user can authenticate, tokens don't expire
-   - Note: For sensitive scopes, Google may require verification (demo video, privacy policy)
-
-**Step 2: Configure Environment Variables**
-
-```bash
-GEMINI_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
-GEMINI_OAUTH_CLIENT_SECRET=GOCSPX-your-client-secret
-
-# 可选：如需使用 Gemini CLI 内置 OAuth Client（Code Assist / Google One）
-# 安全说明：本仓库不会内置该 client_secret，请在运行环境通过环境变量注入。
-# GEMINI_CLI_OAUTH_CLIENT_SECRET=GOCSPX-your-built-in-secret
-```
-
-**Step 3: Create Account in Admin UI**
-
-1. Create a Gemini OAuth account and select **"AI Studio"** type
-2. Complete the OAuth flow
-   - After consent, your browser will be redirected to `http://localhost:1455/auth/callback?code=...&state=...`
-   - Copy the full callback URL (recommended) or just the `code` and paste it back into the Admin UI
-
-### Method 3: API Key (Simplest)
-
-1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Click "Create API key"
-3. In Admin UI, create a Gemini **API Key** account
-4. Paste your API key (starts with `AIza...`)
-
-### Comparison Table
-
-| Feature | Code Assist OAuth | AI Studio OAuth | API Key |
-|---------|-------------------|-----------------|---------|
-| Setup Complexity | Easy (no config) | Medium (OAuth client) | Easy |
-| GCP Project Required | Yes | No | No |
-| Custom OAuth Client | No (built-in) | Yes (required) | N/A |
-| Rate Limits | GCP quota | Standard | Standard |
-| Best For | GCP developers | Regular users needing OAuth | Quick testing |
-
----
-
-## Binary Installation
-
-For production servers using systemd.
-
-### One-Line Installation
-
-```bash
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install.sh | sudo bash
-```
-
-### Manual Installation
-
-1. Download the latest release from [GitHub Releases](https://github.com/Wei-Shaw/sub2api/releases)
-2. Extract and copy the binary to `/opt/sub2api/`
-3. Copy `sub2api.service` to `/etc/systemd/system/`
-4. Run:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable sub2api
-   sudo systemctl start sub2api
-   ```
-5. Open the Setup Wizard in your browser to complete configuration
-
-### Commands
-
-```bash
-# Install
-sudo ./install.sh
-
-# Upgrade
-sudo ./install.sh upgrade
-
-# Uninstall
-sudo ./install.sh uninstall
-```
-
-### Service Management
-
-```bash
-# Start the service
-sudo systemctl start sub2api
-
-# Stop the service
-sudo systemctl stop sub2api
-
-# Restart the service
-sudo systemctl restart sub2api
-
-# Check status
-sudo systemctl status sub2api
-
-# View logs
-sudo journalctl -u sub2api -f
-
-# Enable auto-start on boot
-sudo systemctl enable sub2api
-```
-
-### Configuration
-
-#### Server Address and Port
-
-During installation, you will be prompted to configure the server listen address and port. These settings are stored in the systemd service file as environment variables.
-
-To change after installation:
-
-1. Edit the systemd service:
-   ```bash
-   sudo systemctl edit sub2api
-   ```
-
-2. Add or modify:
-   ```ini
-   [Service]
-   Environment=SERVER_HOST=0.0.0.0
-   Environment=SERVER_PORT=3000
-   ```
-
-3. Reload and restart:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl restart sub2api
-   ```
-
-#### Gemini OAuth Configuration
-
-If you need to use AI Studio OAuth for Gemini accounts, add the OAuth client credentials to the systemd service file:
-
-1. Edit the service file:
-   ```bash
-   sudo nano /etc/systemd/system/sub2api.service
-   ```
-
-2. Add your OAuth credentials in the `[Service]` section (after the existing `Environment=` lines):
-   ```ini
-   Environment=GEMINI_OAUTH_CLIENT_ID=your-client-id.apps.googleusercontent.com
-   Environment=GEMINI_OAUTH_CLIENT_SECRET=GOCSPX-your-client-secret
-   ```
-
-   如需使用“内置 Gemini CLI OAuth Client”（Code Assist / Google One），还需要注入：
-   ```ini
-   Environment=GEMINI_CLI_OAUTH_CLIENT_SECRET=GOCSPX-your-built-in-secret
-   ```
-
-3. Reload and restart:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl restart sub2api
-   ```
-
-> **Note:** Code Assist OAuth does not require any configuration - it uses the built-in Gemini CLI client.
-> See the [Gemini OAuth Configuration](#gemini-oauth-configuration) section above for detailed setup instructions.
-
-#### Application Configuration
-
-The main config file is at `/etc/sub2api/config.yaml` (created by Setup Wizard).
-
-### Prerequisites
-
-- Linux server (Ubuntu 20.04+, Debian 11+, CentOS 8+, etc.)
-- PostgreSQL 14+
-- Redis 6+
-- systemd
-
-### Directory Structure
-
-```
-/opt/sub2api/
-├── sub2api              # Main binary
-├── sub2api.backup       # Backup (after upgrade)
-└── data/                # Runtime data
-
-/etc/sub2api/
-└── config.yaml          # Configuration file
-```
-
----
-
-## Troubleshooting
-
-### Docker
-
-For **local directory version**:
-
-```bash
-# Check container status
-docker compose -f docker-compose.local.yml ps
-
-# View detailed logs
-docker compose -f docker-compose.local.yml logs --tail=100 sub2api
-
-# Check database connection
-docker compose -f docker-compose.local.yml exec postgres pg_isready
-
-# Check Redis connection
-docker compose -f docker-compose.local.yml exec redis redis-cli ping
-
-# Restart all services
-docker compose -f docker-compose.local.yml restart
-
-# Check data directories
-ls -la data/ postgres_data/ redis_data/
-```
-
-For **named volumes version**:
-
-```bash
-# Check container status
-docker compose ps
-
-# View detailed logs
-docker compose logs --tail=100 sub2api
-
-# Check database connection
-docker compose exec postgres pg_isready
-
-# Check Redis connection
-docker compose exec redis redis-cli ping
-
-# Restart all services
-docker compose restart
-```
-
-### Binary Install
-
-```bash
-# Check service status
-sudo systemctl status sub2api
-
-# View recent logs
-sudo journalctl -u sub2api -n 50
-
-# Check config file
-sudo cat /etc/sub2api/config.yaml
-
-# Check PostgreSQL
-sudo systemctl status postgresql
-
-# Check Redis
-sudo systemctl status redis
-```
-
-### Common Issues
-
-1. **Port already in use**: Change `SERVER_PORT` in `.env` or systemd config
-2. **Database connection failed**: Check PostgreSQL is running and credentials are correct
-3. **Redis connection failed**: Check Redis is running and password is correct
-4. **Permission denied**: Ensure proper file ownership for binary install
-
----
-
-## TLS Fingerprint Configuration
-
-Sub2API supports TLS fingerprint simulation to make requests appear as if they come from the official Claude CLI (Node.js client).
-
-> **💡 Tip:** Visit **[tls.sub2api.org](https://tls.sub2api.org/)** to get TLS fingerprint information for different devices and browsers.
-
-### Default Behavior
-
-- Built-in `claude_cli_v2` profile simulates Node.js 20.x + OpenSSL 3.x
-- JA3 Hash: `1a28e69016765d92e3b381168d68922c`
-- JA4: `t13d5911h1_a33745022dd6_1f22a2ca17c4`
-- Profile selection: `accountID % profileCount`
-
-### Configuration
-
-```yaml
-gateway:
-  tls_fingerprint:
-    enabled: true  # Global switch
-    profiles:
-      # Simple profile (uses default cipher suites)
-      profile_1:
-        name: "Profile 1"
-
-      # Profile with custom cipher suites (use compact array format)
-      profile_2:
-        name: "Profile 2"
-        cipher_suites: [4866, 4867, 4865, 49199, 49195, 49200, 49196]
-        curves: [29, 23, 24]
-        point_formats: 0
-
-      # Another custom profile
-      profile_3:
-        name: "Profile 3"
-        cipher_suites: [4865, 4866, 4867, 49199, 49200]
-        curves: [29, 23, 24, 25]
-```
-
-### Profile Fields
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | string | Display name (required) |
-| `cipher_suites` | []uint16 | Cipher suites in decimal. Empty = default |
-| `curves` | []uint16 | Elliptic curves in decimal. Empty = default |
-| `point_formats` | []uint8 | EC point formats. Empty = default |
-
-### Common Values Reference
-
-**Cipher Suites (TLS 1.3):** `4865` (AES_128_GCM), `4866` (AES_256_GCM), `4867` (CHACHA20)
-
-**Cipher Suites (TLS 1.2):** `49195`, `49196`, `49199`, `49200` (ECDHE variants)
-
-**Curves:** `29` (X25519), `23` (P-256), `24` (P-384), `25` (P-521)
