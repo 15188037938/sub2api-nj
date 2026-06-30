@@ -1,8 +1,6 @@
 package schema
 
 import (
-	"time"
-
 	"github.com/Wei-Shaw/sub2api/ent/schema/mixins"
 
 	"entgo.io/ent"
@@ -48,10 +46,6 @@ func (CheckInRecord) Fields() []ent.Field {
 		field.Int("total_points").
 			Default(0).
 			Comment("当前总积分"),
-		field.Time("created_at").
-			Immutable().
-			Default(time.Now).
-			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
 	}
 }
 
