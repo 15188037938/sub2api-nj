@@ -18,6 +18,7 @@ import (
 	_ "github.com/Wei-Shaw/sub2api/ent/runtime"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/setup"
@@ -48,6 +49,10 @@ func init() {
 	if Version == "" {
 		Version = "0.0.0-dev"
 	}
+
+	// 将编译时注入的版本信息传递给 admin handler
+	admin.GitCommit = Commit
+	admin.BuildTime = Date
 }
 
 // initLogger configures the default slog handler based on gin.Mode().

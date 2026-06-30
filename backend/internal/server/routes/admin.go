@@ -109,6 +109,9 @@ func RegisterAdminRoutes(
 
 		// 签到抽奖管理
 		registerCheckInLotteryAdminRoutes(admin, h)
+
+		// 在线更新
+		registerUpdateRoutes(admin, h)
 	}
 }
 
@@ -684,6 +687,14 @@ func registerAffiliateRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 			users.PUT("/:user_id", h.Admin.Affiliate.UpdateUserSettings)
 			users.DELETE("/:user_id", h.Admin.Affiliate.ClearUserSettings)
 		}
+	}
+}
+
+func registerUpdateRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	update := admin.Group("/update")
+	{
+		update.GET("/status", h.Admin.Update.GetStatus)
+		update.POST("/apply", h.Admin.Update.ApplyUpdate)
 	}
 }
 

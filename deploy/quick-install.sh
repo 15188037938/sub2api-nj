@@ -143,10 +143,10 @@ else
 fi
 
 # ============================================================
-# Step 5: 检查端口可用性并开放防火墙
+# Step 5: 检查端口可用性、Docker Socket 并开放防火墙
 # ============================================================
 STEP=5
-print_step "$STEP" "检查端口可用性并开放防火墙"
+print_step "$STEP" "检查端口可用性、Docker Socket 并开放防火墙"
 
 PORT=${SERVER_PORT:-8080}
 
@@ -167,6 +167,14 @@ if [ "$PORT" != "${SERVER_PORT:-8080}" ]; then
 fi
 SERVER_PORT=$PORT
 export SERVER_PORT
+
+# 检查 Docker Socket 是否可用
+if [ -e /var/run/docker.sock ]; then
+  print_ok "Docker Socket 已存在 (/var/run/docker.sock)"
+else
+  print_warn "Docker Socket 不存在，在线更新功能需要挂载 /var/run/docker.sock"
+  print_info "请确保 docker-compose.nj.yml 中已添加: /var/run/docker.sock:/var/run/docker.sock"
+fi
 
 # 开放防火墙端口
 if command -v ufw &>/dev/null; then
@@ -223,6 +231,8 @@ services:
       - "${BIND_HOST:-0.0.0.0}:${SERVER_PORT:-8080}:8080"
     volumes:
       - sub2api_data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/sub2api-nj:/opt/sub2api-nj
     environment:
       - AUTO_SETUP=true
       - SERVER_HOST=0.0.0.0

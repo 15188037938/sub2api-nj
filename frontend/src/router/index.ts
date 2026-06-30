@@ -662,6 +662,16 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/update',
+    name: 'AdminUpdate',
+    component: () => import('@/views/admin/UpdateView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: '系统更新'
+    }
+  },
+  {
     path: '/admin/orders/plans',
     name: 'AdminPaymentPlans',
     component: () => import('@/views/admin/orders/AdminPaymentPlansView.vue'),
