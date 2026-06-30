@@ -106,6 +106,9 @@ func RegisterAdminRoutes(
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
+
+		// 签到抽奖管理
+		registerCheckInLotteryAdminRoutes(admin, h)
 	}
 }
 
@@ -681,5 +684,30 @@ func registerAffiliateRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 			users.PUT("/:user_id", h.Admin.Affiliate.UpdateUserSettings)
 			users.DELETE("/:user_id", h.Admin.Affiliate.ClearUserSettings)
 		}
+	}
+}
+
+func registerCheckInLotteryAdminRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	// 奖品管理
+	prizes := admin.Group("/lottery/prizes")
+	{
+		prizes.GET("", h.Admin.CheckIn.ListPrizes)
+		prizes.POST("", h.Admin.CheckIn.CreatePrize)
+		prizes.PUT("/:id", h.Admin.CheckIn.UpdatePrize)
+		prizes.DELETE("/:id", h.Admin.CheckIn.DeletePrize)
+	}
+
+	// 抽奖记录
+	admin.GET("/lottery/records", h.Admin.CheckIn.GetLotteryRecords)
+
+	// 抽奖统计
+	admin.GET("/lottery/stats", h.Admin.CheckIn.GetLotteryStats)
+
+	// 签到配置
+	checkin := admin.Group("/checkin")
+	{
+		checkin.GET("/config", h.Admin.CheckIn.GetConfig)
+		checkin.PUT("/config", h.Admin.CheckIn.UpdateConfig)
+		checkin.GET("/records", h.Admin.CheckIn.GetCheckInRecords)
 	}
 }

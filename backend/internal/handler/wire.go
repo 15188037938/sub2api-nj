@@ -75,6 +75,7 @@ func ProvideAdminHandlers(
 		Payment:                paymentHandler,
 		Affiliate:              affiliateHandler,
 		Compliance:             complianceHandler,
+		CheckIn:                checkInHandler,
 	}
 }
 
@@ -115,6 +116,7 @@ func ProvideHandlers(
 	paymentHandler *PaymentHandler,
 	paymentWebhookHandler *PaymentWebhookHandler,
 	availableChannelHandler *AvailableChannelHandler,
+	checkInHandler *CheckInHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
@@ -135,6 +137,7 @@ func ProvideHandlers(
 		Payment:          paymentHandler,
 		PaymentWebhook:   paymentWebhookHandler,
 		AvailableChannel: availableChannelHandler,
+		CheckIn:          checkInHandler,
 	}
 }
 
@@ -190,6 +193,10 @@ var ProviderSet = wire.NewSet(
 	admin.NewPaymentHandler,
 	admin.NewAffiliateHandler,
 	admin.NewComplianceHandler,
+
+	// Check-in & Lottery handlers
+	NewCheckInHandler,
+	NewAdminCheckInHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

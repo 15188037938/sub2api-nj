@@ -53,6 +53,22 @@ func RegisterUserRoutes(
 				totp.POST("/enable", h.Totp.Enable)
 				totp.POST("/disable", h.Totp.Disable)
 			}
+
+			// 签到抽奖
+			checkin := user.Group("/checkin")
+			{
+				checkin.GET("/status", h.CheckIn.GetStatus)
+				checkin.POST("", h.CheckIn.DoCheckIn)
+				checkin.GET("/records", h.CheckIn.GetCheckInRecords)
+			}
+
+			// 抽奖
+			lottery := user.Group("/lottery")
+			{
+				lottery.GET("/config", h.CheckIn.GetLotteryConfig)
+				lottery.POST("/draw", h.CheckIn.DrawLottery)
+				lottery.GET("/history", h.CheckIn.GetLotteryHistory)
+			}
 		}
 
 		// API Key管理

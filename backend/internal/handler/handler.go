@@ -4,6 +4,8 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 )
 
+//go:generate go run -mod=mod github.com/google/wire/cmd/wire
+
 // AdminHandlers contains all admin-related HTTP handlers
 type AdminHandlers struct {
 	Dashboard              *admin.DashboardHandler
@@ -38,6 +40,7 @@ type AdminHandlers struct {
 	Payment                *admin.PaymentHandler
 	Affiliate              *admin.AffiliateHandler
 	Compliance             *admin.ComplianceHandler
+	CheckIn                *AdminCheckInHandler
 }
 
 // Handlers contains all HTTP handlers
@@ -58,6 +61,7 @@ type Handlers struct {
 	Payment          *PaymentHandler
 	PaymentWebhook   *PaymentWebhookHandler
 	AvailableChannel *AvailableChannelHandler
+	CheckIn          *CheckInHandler
 }
 
 // BuildInfo contains build-time information

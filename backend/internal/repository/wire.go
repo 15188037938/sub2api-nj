@@ -125,6 +125,9 @@ var ProviderSet = wire.NewSet(
 	NewTLSFingerprintProfileCache,
 	NewContentModerationHashCache,
 
+	// Check-in & Lottery
+	NewCheckInRepo,
+
 	// Encryptors
 	NewAESEncryptor,
 

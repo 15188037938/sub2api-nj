@@ -15,6 +15,8 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
+//go:generate go run -mod=mod entgo.io/ent/cmd/ent generate ./schema
+
 // User holds the schema definition for the User entity.
 type User struct {
 	ent.Schema
@@ -132,6 +134,8 @@ func (User) Edges() []ent.Edge {
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("pending_auth_sessions", PendingAuthSession.Type),
 		edge.To("platform_quotas", UserPlatformQuota.Type),
+		edge.To("check_in_records", CheckInRecord.Type),
+		edge.To("lottery_records", LotteryRecord.Type),
 	}
 }
 

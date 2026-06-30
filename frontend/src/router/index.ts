@@ -254,6 +254,16 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/checkin',
+    name: 'CheckIn',
+    component: () => import('@/views/user/CheckInView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: '签到抽奖',
+    }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/user/ProfileView.vue'),
@@ -639,6 +649,16 @@ const routes: RouteRecordRaw[] = [
       title: 'Order Management',
       titleKey: 'nav.orderManagement',
       requiresPayment: true
+    }
+  },
+  {
+    path: '/admin/lottery',
+    name: 'AdminLottery',
+    component: () => import('@/views/admin/LotteryAdminView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: '签到抽奖管理',
     }
   },
   {
