@@ -21,9 +21,9 @@ jobs:
       - name: Verify Go version
         run: |
           go version | grep -q 'go1.26.4'
-      - name: Generate ent/wire code
+      - name: Generate Ent code from schemas
         working-directory: backend
-        run: make generate
+        run: go generate ./ent
       - name: Unit tests
         working-directory: backend
         run: make test-unit
@@ -64,9 +64,9 @@ jobs:
       - name: Verify Go version
         run: |
           go version | grep -q 'go1.26.4'
-      - name: Generate ent/wire code
+      - name: Generate Ent code from schemas
         working-directory: backend
-        run: make generate
+        run: go generate ./ent
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
