@@ -3,7 +3,6 @@ package handler
 import (
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -130,12 +129,9 @@ func (h *CheckInHandler) ClaimLotteryReward(c *gin.Context) {
 		return
 	}
 
-	// 标记领取（由 service 层处理）
+	_ = recordID // 后续扩展：标记为已领取
 	response.Success(c, gin.H{"message": "领取成功", "record_id": recordID})
-	_ = recordID
 }
-
-// ---------- 管理端接口 ----------
 
 // AdminCheckInHandler 签到抽奖管理端 Handler
 type AdminCheckInHandler struct {
@@ -159,7 +155,7 @@ func (h *AdminCheckInHandler) GetConfig(c *gin.Context) {
 
 // UpdateConfig 更新签到配置
 func (h *AdminCheckInHandler) UpdateConfig(c *gin.Context) {
-	var updates map[string]interface{}
+	var updates map[string]any
 	if err := c.ShouldBindJSON(&updates); err != nil {
 		response.Error(c, http.StatusBadRequest, "参数格式错误")
 		return
@@ -225,7 +221,7 @@ func (h *AdminCheckInHandler) UpdatePrize(c *gin.Context) {
 		return
 	}
 
-	var updates map[string]interface{}
+	var updates map[string]any
 	if err := c.ShouldBindJSON(&updates); err != nil {
 		response.Error(c, http.StatusBadRequest, "参数格式错误")
 		return
@@ -297,10 +293,4 @@ func (h *AdminCheckInHandler) GetLotteryStats(c *gin.Context) {
 		return
 	}
 	response.Success(c, stats)
-}
-
-// ---------- 辅助函数 ----------
-
-func init() {
-	_ = time.Now
 }

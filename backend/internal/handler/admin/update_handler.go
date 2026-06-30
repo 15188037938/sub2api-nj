@@ -36,8 +36,7 @@ func NewUpdateHandler() *UpdateHandler {
 // GetStatus returns the current update status
 // GET /api/v1/admin/update/status
 func (h *UpdateHandler) GetStatus(c *gin.Context) {
-	latestCommit := ""
-	latestCommit, _ = fetchLatestCommit(h.githubUser, h.githubRepo)
+	latestCommit, _ := fetchLatestCommit(h.githubUser, h.githubRepo)
 
 	isUpToDate := (latestCommit == "" || latestCommit == GitCommit)
 
@@ -80,7 +79,7 @@ func fetchLatestCommit(owner, repo string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", err
 	}
