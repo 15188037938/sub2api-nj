@@ -19,14 +19,12 @@ FROM ${NODE_IMAGE} AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm v9 (v10 blocks build scripts for esbuild/vue-demi)
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 # Install dependencies first (better caching)
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
-# pnpm v10+ blocks build scripts by default; approve esbuild & vue-demi builds
-RUN pnpm config set onlyBuiltDependencies '["esbuild","vue-demi"]' --location project && \
-    pnpm install --no-frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 # Copy frontend source and build.
 # LegalDocumentView.vue (admin-compliance gate) build-time imports
