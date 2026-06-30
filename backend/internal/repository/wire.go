@@ -127,6 +127,7 @@ var ProviderSet = wire.NewSet(
 
 	// Check-in & Lottery
 	NewCheckInRepo,
+	wire.Bind(new(service.CheckInRepo), new(*CheckInRepo)),
 
 	// Encryptors
 	NewAESEncryptor,

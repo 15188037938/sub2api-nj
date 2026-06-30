@@ -10,17 +10,37 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/lotteryrecord"
-	"github.com/Wei-Shaw/sub2api/internal/repository"
 )
+
+// CheckInRepo 签到数据访问接口
+type CheckInRepo interface {
+	GetCheckInConfig(ctx context.Context) (*ent.CheckInConfig, error)
+	GetTodayCheckIn(ctx context.Context, userID int64, date string) (*ent.CheckInRecord, error)
+	GetLastCheckIn(ctx context.Context, userID int64) (*ent.CheckInRecord, error)
+	CreateCheckIn(ctx context.Context, userID int64, date time.Time, points, consecutiveDays, totalPoints int) (*ent.CheckInRecord, error)
+	GetTodayDrawCount(ctx context.Context, userID int64, todayStart, todayEnd time.Time) (int, error)
+	ListPrizes(ctx context.Context) ([]*ent.LotteryPrize, error)
+	DecrementPrizeStock(ctx context.Context, id int64) error
+	CreateLotteryRecord(ctx context.Context, userID, prizeID int64, prizeName, prizeType string, amount float64, costPoints int) (*ent.LotteryRecord, error)
+	ClaimLotteryRecord(ctx context.Context, id int64) error
+	GetLotteryRecords(ctx context.Context, userID int64, page, pageSize int) ([]*ent.LotteryRecord, int, error)
+	GetCheckInRecords(ctx context.Context, userID int64, page, pageSize int) ([]*ent.CheckInRecord, int, error)
+	UpdateCheckInConfig(ctx context.Context, id int, updates map[string]any) (*ent.CheckInConfig, error)
+	CreatePrize(ctx context.Context, name, prizeType string, amount float64, weight, totalStock, sortOrder int, icon string) (*ent.LotteryPrize, error)
+	UpdatePrize(ctx context.Context, id int64, updates map[string]any) (*ent.LotteryPrize, error)
+	DeletePrize(ctx context.Context, id int64) error
+	GetAllLotteryRecords(ctx context.Context, page, pageSize int) ([]*ent.LotteryRecord, int, error)
+	GetAllCheckInRecords(ctx context.Context, page, pageSize int) ([]*ent.CheckInRecord, int, error)
+}
 
 // CheckInService 签到抽奖业务逻辑
 type CheckInService struct {
-	repo    *repository.CheckInRepo
-	userRepo *repository.UserRepo
+	repo    CheckInRepo
+	userRepo UserRepository
 }
 
 // NewCheckInService creates a new CheckInService
-func NewCheckInService(repo *repository.CheckInRepo, userRepo *repository.UserRepo) *CheckInService {
+func NewCheckInService(repo CheckInRepo, userRepo UserRepository) *CheckInService {
 	return &CheckInService{repo: repo, userRepo: userRepo}
 }
 
@@ -30,7 +50,7 @@ type ConsecutiveBonus struct {
 	Bonus int `json:"bonus"`
 }
 
-// CheckInStatus 签到状态响�?type CheckInStatus struct {
+// CheckInStatus 签到状态响�?type CheckInStatus struct {
 	CheckedIn       bool   `json:"checked_in"`
 	ConsecutiveDays int    `json:"consecutive_days"`
 	TotalPoints     int    `json:"total_points"`
@@ -50,7 +70,7 @@ type LotteryResult struct {
 	CreatedAt  string  `json:"created_at"`
 }
 
-// GetStatus 获取用户签到状�?func (s *CheckInService) GetStatus(ctx context.Context, userID int64) (*CheckInStatus, error) {
+// GetStatus 获取用户签到状�?func (s *CheckInService) GetStatus(ctx context.Context, userID int64) (*CheckInStatus, error) {
 	config, err := s.repo.GetCheckInConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get config: %w", err)
@@ -70,7 +90,7 @@ type LotteryResult struct {
 		status.TotalPoints = record.TotalPoints
 		status.TodayPoints = record.PointsEarned
 	} else {
-		// 获取上次签到记录来确定连续天�?		lastRecord, err := s.repo.GetLastCheckIn(ctx, userID)
+		// 获取上次签到记录来确定连续天�?		lastRecord, err := s.repo.GetLastCheckIn(ctx, userID)
 		if err == nil {
 			yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 			lastDate := lastRecord.CheckInDate.Format("2006-01-02")
@@ -92,7 +112,7 @@ func (s *CheckInService) DoCheckIn(ctx context.Context, userID int64) (*CheckInS
 	}
 
 	if !config.Enabled {
-		return nil, fmt.Errorf("签到功能暂未开�?)
+		return nil, fmt.Errorf("签到功能暂未开�?)
 	}
 
 	today := time.Now()
@@ -101,7 +121,7 @@ func (s *CheckInService) DoCheckIn(ctx context.Context, userID int64) (*CheckInS
 	// 检查今日是否已签到
 	existing, _ := s.repo.GetTodayCheckIn(ctx, userID, todayStr)
 	if existing != nil {
-		return nil, fmt.Errorf("今日已签�?)
+		return nil, fmt.Errorf("今日已签�?)
 	}
 
 	// 计算连续签到天数
@@ -125,7 +145,7 @@ func (s *CheckInService) DoCheckIn(ctx context.Context, userID int64) (*CheckInS
 	if err := json.Unmarshal([]byte(config.ConsecutiveBonusJSON), &bonusConsecutive); err == nil {
 		for _, b := range bonusConsecutive {
 			if consecutiveDays >= b.Days {
-				// 当天恰好到达里程碑天数时给加�?				if consecutiveDays == b.Days {
+				// 当天恰好到达里程碑天数时给加�?				if consecutiveDays == b.Days {
 					points += b.Bonus
 					slog.Info("checkin: consecutive bonus applied",
 						"userID", userID,
@@ -165,7 +185,7 @@ func (s *CheckInService) DrawLottery(ctx context.Context, userID int64) (*Lotter
 	}
 
 	if !config.Enabled {
-		return nil, fmt.Errorf("抽奖功能暂未开�?)
+		return nil, fmt.Errorf("抽奖功能暂未开�?)
 	}
 
 	// 检查今日已抽奖次数
@@ -176,15 +196,15 @@ func (s *CheckInService) DrawLottery(ctx context.Context, userID int64) (*Lotter
 		return nil, fmt.Errorf("get draw count: %w", err)
 	}
 	if drawCount >= config.DailyMaxDraws {
-		return nil, fmt.Errorf("今日抽奖次数已用�?)
+		return nil, fmt.Errorf("今日抽奖次数已用�?)
 	}
 
-	// 检查积分是否足�?	lastRecord, err := s.repo.GetLastCheckIn(ctx, userID)
+	// 检查积分是否足�?	lastRecord, err := s.repo.GetLastCheckIn(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("请先签到获取积分")
 	}
 	if lastRecord.TotalPoints < config.LotteryCost {
-		return nil, fmt.Errorf("积分不足，需�?d积分，当�?d积分", config.LotteryCost, lastRecord.TotalPoints)
+		return nil, fmt.Errorf("积分不足，需�?d积分，当�?d积分", config.LotteryCost, lastRecord.TotalPoints)
 	}
 
 	// 获取奖品列表
@@ -193,7 +213,7 @@ func (s *CheckInService) DrawLottery(ctx context.Context, userID int64) (*Lotter
 		return nil, fmt.Errorf("暂无可用奖品")
 	}
 
-	// 按权重抽取奖�?	totalWeight := 0
+	// 按权重抽取奖�?	totalWeight := 0
 	availablePrizes := make([]*ent.LotteryPrize, 0)
 	for _, p := range prizes {
 		if p.RemainingStock != 0 && p.Status == "active" {
@@ -202,7 +222,7 @@ func (s *CheckInService) DrawLottery(ctx context.Context, userID int64) (*Lotter
 		}
 	}
 	if len(availablePrizes) == 0 {
-		return nil, fmt.Errorf("奖品已全部抽�?)
+		return nil, fmt.Errorf("奖品已全部抽�?)
 	}
 
 	// 随机抽取
@@ -220,7 +240,7 @@ func (s *CheckInService) DrawLottery(ctx context.Context, userID int64) (*Lotter
 		selectedPrize = availablePrizes[0]
 	}
 
-	// 扣库�?	if selectedPrize.RemainingStock > 0 {
+	// 扣库�?	if selectedPrize.RemainingStock > 0 {
 		_ = s.repo.DecrementPrizeStock(ctx, selectedPrize.ID)
 	}
 
@@ -252,7 +272,7 @@ func (s *CheckInService) processPrize(ctx context.Context, userID int64, prizeTy
 	switch prizeType {
 	case "balance":
 		// 发放余额
-		err := s.userRepo.UpdateBalance(ctx, userID, amount, "+", fmt.Sprintf("抽奖中奖 #%d", recordID))
+		err := s.userRepo.UpdateBalance(ctx, userID, amount)
 		if err != nil {
 			slog.Error("lottery: failed to add balance", "userID", userID, "amount", amount, "error", err)
 		}
@@ -262,7 +282,7 @@ func (s *CheckInService) processPrize(ctx context.Context, userID int64, prizeTy
 		// 积分返还已在上层处理
 		_ = s.repo.ClaimLotteryRecord(ctx, recordID)
 	case "none":
-		// 谢谢参与，自动完�?		_ = s.repo.ClaimLotteryRecord(ctx, recordID)
+		// 谢谢参与，自动完�?		_ = s.repo.ClaimLotteryRecord(ctx, recordID)
 	}
 }
 
@@ -312,7 +332,7 @@ func (s *CheckInService) GetCheckInRecords(ctx context.Context, userID int64, pa
 	return s.repo.GetCheckInRecords(ctx, userID, page, pageSize)
 }
 
-// ---------- 管理端接�?----------
+// ---------- 管理端接�?----------
 
 // GetConfig 获取签到配置
 func (s *CheckInService) GetConfig(ctx context.Context) (*ent.CheckInConfig, error) {
@@ -329,7 +349,7 @@ func (s *CheckInService) UpdateConfig(ctx context.Context, updates map[string]an
 	return err
 }
 
-// ListPrizes 获取所有奖�?func (s *CheckInService) ListPrizes(ctx context.Context) ([]*ent.LotteryPrize, error) {
+// ListPrizes 获取所有奖�?func (s *CheckInService) ListPrizes(ctx context.Context) ([]*ent.LotteryPrize, error) {
 	return s.repo.ListPrizes(ctx)
 }
 
