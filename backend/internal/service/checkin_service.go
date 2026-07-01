@@ -40,7 +40,7 @@ type CheckInService struct {
 }
 
 // NewCheckInService creates a new CheckInService
-func NewCheckInService(repo *repository.CheckInRepo, userRepo UserRepository) *CheckInService {
+func NewCheckInService(repo CheckInRepo, userRepo UserRepository) *CheckInService {
 	return &CheckInService{repo: repo, userRepo: userRepo}
 }
 
