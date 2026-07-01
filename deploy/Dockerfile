@@ -26,10 +26,11 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# Copy frontend source and build (skip vue-tsc to save memory on low-resource VPS)
+# Copy frontend source and build (skip vue-tsc, limit memory for stability)
 COPY frontend/ ./
 COPY docs/legal/ /app/docs/legal/
-RUN npx vite build
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+RUN npx vite build --logLevel info
 
 # -----------------------------------------------------------------------------
 # Stage 2: Backend Builder
