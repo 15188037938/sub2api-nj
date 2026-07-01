@@ -26,14 +26,10 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# Copy frontend source and build.
-# LegalDocumentView.vue (admin-compliance gate) build-time imports
-# ../../../../docs/legal/*.md?raw, so docs/legal/ must sit beside frontend/
-# in the image (WORKDIR /app/frontend -> resolves to /app/docs/legal/*.md).
-# Copy only that subtree to keep the build dependency minimal.
+# Copy frontend source and build (skip vue-tsc to save memory on low-resource VPS)
 COPY frontend/ ./
 COPY docs/legal/ /app/docs/legal/
-RUN pnpm run build
+RUN npx vite build
 
 # -----------------------------------------------------------------------------
 # Stage 2: Backend Builder
