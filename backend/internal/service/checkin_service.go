@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"context"
@@ -10,9 +10,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/lotteryrecord"
-)
-
-// CheckInRepo 签到数据访问接口
+// CheckInRepo defines the repository interface for check-in/lottery
 type CheckInRepo interface {
 	GetCheckInConfig(ctx context.Context) (*ent.CheckInConfig, error)
 	GetTodayCheckIn(ctx context.Context, userID int64, date string) (*ent.CheckInRecord, error)
@@ -33,24 +31,26 @@ type CheckInRepo interface {
 	GetAllCheckInRecords(ctx context.Context, page, pageSize int) ([]*ent.CheckInRecord, int, error)
 }
 
-// CheckInService 签到抽奖业务逻辑
+)
+
+// CheckInService 绛惧埌鎶藉涓氬姟閫昏緫
 type CheckInService struct {
 	repo    CheckInRepo
 	userRepo UserRepository
 }
 
 // NewCheckInService creates a new CheckInService
-func NewCheckInService(repo CheckInRepo, userRepo UserRepository) *CheckInService {
+func NewCheckInService(repo *repository.CheckInRepo, userRepo UserRepository) *CheckInService {
 	return &CheckInService{repo: repo, userRepo: userRepo}
 }
 
-// ConsecutiveBonus 连续签到加成规则
+// ConsecutiveBonus 杩炵画绛惧埌鍔犳垚瑙勫垯
 type ConsecutiveBonus struct {
 	Days  int `json:"days"`
 	Bonus int `json:"bonus"`
 }
 
-// CheckInStatus 签到状态响�?type CheckInStatus struct {
+// CheckInStatus 绛惧埌鐘舵€佸搷搴?type CheckInStatus struct {
 	CheckedIn       bool   `json:"checked_in"`
 	ConsecutiveDays int    `json:"consecutive_days"`
 	TotalPoints     int    `json:"total_points"`
@@ -58,7 +58,7 @@ type ConsecutiveBonus struct {
 	Enabled         bool   `json:"enabled"`
 }
 
-// LotteryResult 抽奖结果
+// LotteryResult 鎶藉缁撴灉
 type LotteryResult struct {
 	ID         int64   `json:"id"`
 	PrizeID    int64   `json:"prize_id"`
@@ -70,7 +70,7 @@ type LotteryResult struct {
 	CreatedAt  string  `json:"created_at"`
 }
 
-// GetStatus 获取用户签到状�?func (s *CheckInService) GetStatus(ctx context.Context, userID int64) (*CheckInStatus, error) {
+// GetStatus 鑾峰彇鐢ㄦ埛绛惧埌鐘舵€?func (s *CheckInService) GetStatus(ctx context.Context, userID int64) (*CheckInStatus, error) {
 	config, err := s.repo.GetCheckInConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get config: %w", err)
@@ -90,7 +90,7 @@ type LotteryResult struct {
 		status.TotalPoints = record.TotalPoints
 		status.TodayPoints = record.PointsEarned
 	} else {
-		// 获取上次签到记录来确定连续天�?		lastRecord, err := s.repo.GetLastCheckIn(ctx, userID)
+		// 鑾峰彇涓婃绛惧埌璁板綍鏉ョ‘瀹氳繛缁ぉ鏁?		lastRecord, err := s.repo.GetLastCheckIn(ctx, userID)
 		if err == nil {
 			yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 			lastDate := lastRecord.CheckInDate.Format("2006-01-02")
@@ -104,7 +104,7 @@ type LotteryResult struct {
 	return status, nil
 }
 
-// DoCheckIn 执行签到
+// DoCheckIn 鎵ц绛惧埌
 func (s *CheckInService) DoCheckIn(ctx context.Context, userID int64) (*CheckInStatus, error) {
 	config, err := s.repo.GetCheckInConfig(ctx)
 	if err != nil {
@@ -112,19 +112,19 @@ func (s *CheckInService) DoCheckIn(ctx context.Context, userID int64) (*CheckInS
 	}
 
 	if !config.Enabled {
-		return nil, fmt.Errorf("签到功能暂未开�?)
+		return nil, fmt.Errorf("绛惧埌鍔熻兘鏆傛湭寮€鏀?)
 	}
 
 	today := time.Now()
 	todayStr := today.Format("2006-01-02")
 
-	// 检查今日是否已签到
+	// 妫€鏌ヤ粖鏃ユ槸鍚﹀凡绛惧埌
 	existing, _ := s.repo.GetTodayCheckIn(ctx, userID, todayStr)
 	if existing != nil {
-		return nil, fmt.Errorf("今日已签�?)
+		return nil, fmt.Errorf("浠婃棩宸茬鍒?)
 	}
 
-	// 计算连续签到天数
+	// 璁＄畻杩炵画绛惧埌澶╂暟
 	consecutiveDays := 1
 	lastRecord, err := s.repo.GetLastCheckIn(ctx, userID)
 	if err == nil {
@@ -133,19 +133,19 @@ func (s *CheckInService) DoCheckIn(ctx context.Context, userID int64) (*CheckInS
 		if lastDate == yesterday {
 			consecutiveDays = lastRecord.ConsecutiveDays + 1
 		}
-		// 如果上次签到不是昨天，连续天数重置为1
+		// 濡傛灉涓婃绛惧埌涓嶆槸鏄ㄥぉ锛岃繛缁ぉ鏁伴噸缃负1
 	}
 
-	// 随机积分
+	// 闅忔満绉垎
 	pointsRange := config.DailyMaxPoints - config.DailyMinPoints + 1
 	points := config.DailyMinPoints + rand.Intn(pointsRange)
 
-	// 连续签到加成
+	// 杩炵画绛惧埌鍔犳垚
 	var bonusConsecutive []ConsecutiveBonus
 	if err := json.Unmarshal([]byte(config.ConsecutiveBonusJSON), &bonusConsecutive); err == nil {
 		for _, b := range bonusConsecutive {
 			if consecutiveDays >= b.Days {
-				// 当天恰好到达里程碑天数时给加�?				if consecutiveDays == b.Days {
+				// 褰撳ぉ鎭板ソ鍒拌揪閲岀▼纰戝ぉ鏁版椂缁欏姞鎴?				if consecutiveDays == b.Days {
 					points += b.Bonus
 					slog.Info("checkin: consecutive bonus applied",
 						"userID", userID,
@@ -162,7 +162,7 @@ func (s *CheckInService) DoCheckIn(ctx context.Context, userID int64) (*CheckInS
 		totalPoints = lastRecord.TotalPoints + points
 	}
 
-	// 创建签到记录
+	// 鍒涘缓绛惧埌璁板綍
 	record, err := s.repo.CreateCheckIn(ctx, userID, today, points, consecutiveDays, totalPoints)
 	if err != nil {
 		return nil, fmt.Errorf("create checkin record: %w", err)
@@ -177,7 +177,7 @@ func (s *CheckInService) DoCheckIn(ctx context.Context, userID int64) (*CheckInS
 	}, nil
 }
 
-// DrawLottery 执行抽奖
+// DrawLottery 鎵ц鎶藉
 func (s *CheckInService) DrawLottery(ctx context.Context, userID int64) (*LotteryResult, error) {
 	config, err := s.repo.GetCheckInConfig(ctx)
 	if err != nil {
@@ -185,10 +185,10 @@ func (s *CheckInService) DrawLottery(ctx context.Context, userID int64) (*Lotter
 	}
 
 	if !config.Enabled {
-		return nil, fmt.Errorf("抽奖功能暂未开�?)
+		return nil, fmt.Errorf("鎶藉鍔熻兘鏆傛湭寮€鏀?)
 	}
 
-	// 检查今日已抽奖次数
+	// 妫€鏌ヤ粖鏃ュ凡鎶藉娆℃暟
 	todayStart := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.Now().Location())
 	todayEnd := todayStart.Add(24 * time.Hour)
 	drawCount, err := s.repo.GetTodayDrawCount(ctx, userID, todayStart, todayEnd)
@@ -196,24 +196,24 @@ func (s *CheckInService) DrawLottery(ctx context.Context, userID int64) (*Lotter
 		return nil, fmt.Errorf("get draw count: %w", err)
 	}
 	if drawCount >= config.DailyMaxDraws {
-		return nil, fmt.Errorf("今日抽奖次数已用�?)
+		return nil, fmt.Errorf("浠婃棩鎶藉娆℃暟宸茬敤瀹?)
 	}
 
-	// 检查积分是否足�?	lastRecord, err := s.repo.GetLastCheckIn(ctx, userID)
+	// 妫€鏌ョН鍒嗘槸鍚﹁冻澶?	lastRecord, err := s.repo.GetLastCheckIn(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("请先签到获取积分")
+		return nil, fmt.Errorf("璇峰厛绛惧埌鑾峰彇绉垎")
 	}
 	if lastRecord.TotalPoints < config.LotteryCost {
-		return nil, fmt.Errorf("积分不足，需�?d积分，当�?d积分", config.LotteryCost, lastRecord.TotalPoints)
+		return nil, fmt.Errorf("绉垎涓嶈冻锛岄渶瑕?d绉垎锛屽綋鍓?d绉垎", config.LotteryCost, lastRecord.TotalPoints)
 	}
 
-	// 获取奖品列表
+	// 鑾峰彇濂栧搧鍒楄〃
 	prizes, err := s.repo.ListPrizes(ctx)
 	if err != nil || len(prizes) == 0 {
-		return nil, fmt.Errorf("暂无可用奖品")
+		return nil, fmt.Errorf("鏆傛棤鍙敤濂栧搧")
 	}
 
-	// 按权重抽取奖�?	totalWeight := 0
+	// 鎸夋潈閲嶆娊鍙栧鍝?	totalWeight := 0
 	availablePrizes := make([]*ent.LotteryPrize, 0)
 	for _, p := range prizes {
 		if p.RemainingStock != 0 && p.Status == "active" {
@@ -222,10 +222,10 @@ func (s *CheckInService) DrawLottery(ctx context.Context, userID int64) (*Lotter
 		}
 	}
 	if len(availablePrizes) == 0 {
-		return nil, fmt.Errorf("奖品已全部抽�?)
+		return nil, fmt.Errorf("濂栧搧宸插叏閮ㄦ娊瀹?)
 	}
 
-	// 随机抽取
+	// 闅忔満鎶藉彇
 	r := rand.Intn(totalWeight)
 	cumulative := 0
 	var selectedPrize *ent.LotteryPrize
@@ -240,17 +240,17 @@ func (s *CheckInService) DrawLottery(ctx context.Context, userID int64) (*Lotter
 		selectedPrize = availablePrizes[0]
 	}
 
-	// 扣库�?	if selectedPrize.RemainingStock > 0 {
+	// 鎵ｅ簱瀛?	if selectedPrize.RemainingStock > 0 {
 		_ = s.repo.DecrementPrizeStock(ctx, selectedPrize.ID)
 	}
 
-	// 创建抽奖记录
+	// 鍒涘缓鎶藉璁板綍
 	record, err := s.repo.CreateLotteryRecord(ctx, userID, selectedPrize.ID, selectedPrize.Name, selectedPrize.PrizeType, selectedPrize.Amount, config.LotteryCost)
 	if err != nil {
 		return nil, fmt.Errorf("create lottery record: %w", err)
 	}
 
-	// 处理奖品发放
+	// 澶勭悊濂栧搧鍙戞斁
 	if selectedPrize.PrizeType != "none" && selectedPrize.Amount > 0 {
 		s.processPrize(ctx, userID, selectedPrize.PrizeType, selectedPrize.Amount, record.ID)
 	}
@@ -267,26 +267,26 @@ func (s *CheckInService) DrawLottery(ctx context.Context, userID int64) (*Lotter
 	}, nil
 }
 
-// processPrize 处理奖品发放
+// processPrize 澶勭悊濂栧搧鍙戞斁
 func (s *CheckInService) processPrize(ctx context.Context, userID int64, prizeType string, amount float64, recordID int64) {
 	switch prizeType {
 	case "balance":
-		// 发放余额
-		err := s.userRepo.UpdateBalance(ctx, userID, amount)
+		// 鍙戞斁浣欓
+		err := s.userRepo.UpdateBalance(ctx, userID, amount, "+", fmt.Sprintf("鎶藉涓 #%d", recordID))
 		if err != nil {
 			slog.Error("lottery: failed to add balance", "userID", userID, "amount", amount, "error", err)
 		}
-		// 自动标记为已领取
+		// 鑷姩鏍囪涓哄凡棰嗗彇
 		_ = s.repo.ClaimLotteryRecord(ctx, recordID)
 	case "points":
-		// 积分返还已在上层处理
+		// 绉垎杩旇繕宸插湪涓婂眰澶勭悊
 		_ = s.repo.ClaimLotteryRecord(ctx, recordID)
 	case "none":
-		// 谢谢参与，自动完�?		_ = s.repo.ClaimLotteryRecord(ctx, recordID)
+		// 璋㈣阿鍙備笌锛岃嚜鍔ㄥ畬鎴?		_ = s.repo.ClaimLotteryRecord(ctx, recordID)
 	}
 }
 
-// GetLotteryHistory 获取用户抽奖记录
+// GetLotteryHistory 鑾峰彇鐢ㄦ埛鎶藉璁板綍
 func (s *CheckInService) GetLotteryHistory(ctx context.Context, userID int64, page, pageSize int) ([]*LotteryResult, int, error) {
 	records, total, err := s.repo.GetLotteryRecords(ctx, userID, page, pageSize)
 	if err != nil {
@@ -310,7 +310,7 @@ func (s *CheckInService) GetLotteryHistory(ctx context.Context, userID int64, pa
 	return results, total, nil
 }
 
-// GetTodayDrawCount 获取今日已抽次数
+// GetTodayDrawCount 鑾峰彇浠婃棩宸叉娊娆℃暟
 func (s *CheckInService) GetTodayDrawCount(ctx context.Context, userID int64) (int, int, error) {
 	config, err := s.repo.GetCheckInConfig(ctx)
 	if err != nil {
@@ -327,19 +327,19 @@ func (s *CheckInService) GetTodayDrawCount(ctx context.Context, userID int64) (i
 	return count, config.DailyMaxDraws, nil
 }
 
-// GetCheckInRecords 获取用户签到记录
+// GetCheckInRecords 鑾峰彇鐢ㄦ埛绛惧埌璁板綍
 func (s *CheckInService) GetCheckInRecords(ctx context.Context, userID int64, page, pageSize int) ([]*ent.CheckInRecord, int, error) {
 	return s.repo.GetCheckInRecords(ctx, userID, page, pageSize)
 }
 
-// ---------- 管理端接�?----------
+// ---------- 绠＄悊绔帴鍙?----------
 
-// GetConfig 获取签到配置
+// GetConfig 鑾峰彇绛惧埌閰嶇疆
 func (s *CheckInService) GetConfig(ctx context.Context) (*ent.CheckInConfig, error) {
 	return s.repo.GetCheckInConfig(ctx)
 }
 
-// UpdateConfig 更新签到配置
+// UpdateConfig 鏇存柊绛惧埌閰嶇疆
 func (s *CheckInService) UpdateConfig(ctx context.Context, updates map[string]any) error {
 	config, err := s.repo.GetCheckInConfig(ctx)
 	if err != nil {
@@ -349,37 +349,37 @@ func (s *CheckInService) UpdateConfig(ctx context.Context, updates map[string]an
 	return err
 }
 
-// ListPrizes 获取所有奖�?func (s *CheckInService) ListPrizes(ctx context.Context) ([]*ent.LotteryPrize, error) {
+// ListPrizes 鑾峰彇鎵€鏈夊鍝?func (s *CheckInService) ListPrizes(ctx context.Context) ([]*ent.LotteryPrize, error) {
 	return s.repo.ListPrizes(ctx)
 }
 
-// CreatePrize 创建奖品
+// CreatePrize 鍒涘缓濂栧搧
 func (s *CheckInService) CreatePrize(ctx context.Context, name, prizeType string, amount float64, weight, totalStock, sortOrder int, icon string) (*ent.LotteryPrize, error) {
 	return s.repo.CreatePrize(ctx, name, prizeType, amount, weight, totalStock, sortOrder, icon)
 }
 
-// UpdatePrize 更新奖品
+// UpdatePrize 鏇存柊濂栧搧
 func (s *CheckInService) UpdatePrize(ctx context.Context, id int64, updates map[string]any) error {
 	_, err := s.repo.UpdatePrize(ctx, id, updates)
 	return err
 }
 
-// DeletePrize 删除奖品
+// DeletePrize 鍒犻櫎濂栧搧
 func (s *CheckInService) DeletePrize(ctx context.Context, id int64) error {
 	return s.repo.DeletePrize(ctx, id)
 }
 
-// GetAllLotteryRecords 获取所有抽奖记录（管理员）
+// GetAllLotteryRecords 鑾峰彇鎵€鏈夋娊濂栬褰曪紙绠＄悊鍛橈級
 func (s *CheckInService) GetAllLotteryRecords(ctx context.Context, page, pageSize int) ([]*ent.LotteryRecord, int, error) {
 	return s.repo.GetAllLotteryRecords(ctx, page, pageSize)
 }
 
-// GetAllCheckInRecords 获取所有签到记录（管理员）
+// GetAllCheckInRecords 鑾峰彇鎵€鏈夌鍒拌褰曪紙绠＄悊鍛橈級
 func (s *CheckInService) GetAllCheckInRecords(ctx context.Context, page, pageSize int) ([]*ent.CheckInRecord, int, error) {
 	return s.repo.GetAllCheckInRecords(ctx, page, pageSize)
 }
 
-// GetLotteryStats 获取抽奖统计
+// GetLotteryStats 鑾峰彇鎶藉缁熻
 func (s *CheckInService) GetLotteryStats(ctx context.Context) (map[string]any, error) {
 	prizes, err := s.repo.ListPrizes(ctx)
 	if err != nil {
@@ -398,13 +398,13 @@ func (s *CheckInService) GetLotteryStats(ctx context.Context) (map[string]any, e
 	return stats, nil
 }
 
-// GetAllLotteryRecordsSlice 获取所有抽奖记录切片（管理员，不分页）
+// GetAllLotteryRecordsSlice 鑾峰彇鎵€鏈夋娊濂栬褰曞垏鐗囷紙绠＄悊鍛橈紝涓嶅垎椤碉級
 func (s *CheckInService) GetAllLotteryRecordsSlice(ctx context.Context) ([]*ent.LotteryRecord, error) {
 	records, _, err := s.repo.GetAllLotteryRecords(ctx, 1, 10000)
 	return records, err
 }
 
-// GetAllCheckInRecordsSlice 获取所有签到记录切片（管理员，不分页）
+// GetAllCheckInRecordsSlice 鑾峰彇鎵€鏈夌鍒拌褰曞垏鐗囷紙绠＄悊鍛橈紝涓嶅垎椤碉級
 func (s *CheckInService) GetAllCheckInRecordsSlice(ctx context.Context) ([]*ent.CheckInRecord, error) {
 	records, _, err := s.repo.GetAllCheckInRecords(ctx, 1, 10000)
 	return records, err
