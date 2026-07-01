@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/lotteryrecord"
+)
 // CheckInRepo defines the repository interface for check-in/lottery
 type CheckInRepo interface {
 	GetCheckInConfig(ctx context.Context) (*ent.CheckInConfig, error)
